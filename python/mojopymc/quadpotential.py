@@ -11,6 +11,7 @@ from ._lib import addr, cpu_context, f64, lib, parallel_lock
 
 _ELEMENT_PARALLEL_THRESHOLD = 262_144
 _ELEMENT_SCRATCH = np.empty(8, dtype=np.float64)
+_DENSE_NUMPY_THRESHOLD = 1_024
 _CBLAS_MAX_DIMENSION = np.iinfo(np.int32).max
 
 
@@ -186,6 +187,9 @@ class QuadPotentialFull(QuadPotential):
             raise ValueError("out must not overlap x for dense matrix-vector products")
         if not self._n:
             return 0.0
+        if self._n <= _DENSE_NUMPY_THRESHOLD:
+            np.dot(self._cov, x, out=destination)
+            return 0.5 * float(np.dot(x, destination))
         return lib().mpmc_full_velocity_energy(
             addr(x), addr(self._cov), addr(destination), self._n
         )
@@ -199,9 +203,12 @@ class QuadPotentialFull(QuadPotential):
             raise ValueError("out must not overlap x for dense matrix-vector products")
         if not self._n:
             return destination if out is None else None
-        lib().mpmc_full_velocity(
-            addr(x), addr(self._cov), addr(destination), self._n
-        )
+        if self._n <= _DENSE_NUMPY_THRESHOLD:
+            np.dot(self._cov, x, out=destination)
+        else:
+            lib().mpmc_full_velocity(
+                addr(x), addr(self._cov), addr(destination), self._n
+            )
         if out is None:
             return destination
         return None

@@ -85,11 +85,11 @@ identical arrays.
 
 | case | mojo-pymc | PyMC | result |
 | --- | ---: | ---: | ---: |
-| diagonal velocity + energy (2M) | 2.732 ms | 6.947 ms | 2.54x faster |
-| Welford variance update (2M) | 6.459 ms | 50.756 ms | 7.86x faster |
-| NUTS turning criterion (2M) | 0.899 ms | 0.639 ms | 1.41x slower |
-| 10 leapfrog steps, diagonal (500k) | 51.187 ms | 63.552 ms | 1.24x faster |
-| dense velocity + energy (512x512) | 0.031 ms | 0.016 ms | 1.97x slower |
+| diagonal velocity + energy (2M) | 0.840 ms | 5.790 ms | 6.89x faster |
+| Welford variance update (2M) | 5.050 ms | 149.830 ms | 29.67x faster |
+| NUTS turning criterion (2M) | 0.173 ms | 0.150 ms | 1.16x slower |
+| 10 leapfrog steps, diagonal (500k) | 59.244 ms | 73.307 ms | 1.24x faster |
+| dense velocity + energy (512x512) | 0.023 ms | 0.015 ms | 1.53x slower |
 
 The adaptation win comes from updating mean and raw variance in one
 allocation-free pass, where upstream NumPy creates several full-sized
@@ -98,13 +98,16 @@ each aligned chunk; smaller arrays stay serial. The
 diagonal leapfrog path also fuses its first momentum half-step, velocity
 calculation, and position update.
 
-Dense matrix-vector evaluation and large NUTS dot products call CBLAS directly
-from Mojo while retaining the NumPy-owned buffers. Small NUTS inputs use a
-four-accumulator SIMD loop with a scalar tail. In this run the two
-BLAS-backed cases remain slower because ctypes/Mojo dispatch is visible at
-these timings.
+Small dense covariance products stay in NumPy BLAS to avoid ctypes dispatch;
+larger products call symmetric CBLAS from Mojo. Large NUTS dot products call
+CBLAS directly from Mojo and short-circuit after the left dot when possible.
+Small NUTS inputs use a four-accumulator SIMD loop with a scalar tail. The two
+reduction-heavy cases remain slower in this run because validation and
+dispatch are visible at these timings.
 
-No GPU path is included.
+No GPU path is included. These kernels stream vectors or a dense matrix for
+well under two floating-point operations per byte moved, so host/device
+transfers cannot be amortized by enough computation to justify a GPU path.
 
 ## How it works
 

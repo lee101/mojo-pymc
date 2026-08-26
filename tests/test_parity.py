@@ -101,6 +101,28 @@ def test_dense_velocity_energy_and_random(potential_name):
     assert np.allclose(ours.random(), theirs.random(), rtol=2e-13, atol=1e-13)
 
 
+def test_dense_numpy_threshold_and_mojo_path(monkeypatch):
+    n = 13
+    matrix = spd(n, seed=1013)
+    x = np.random.default_rng(1013).normal(size=n)
+    potential = mojo.QuadPotentialFull(matrix)
+    expected = matrix @ x
+
+    monkeypatch.setattr(mojo_quad, "_DENSE_NUMPY_THRESHOLD", n)
+    numpy_velocity = np.empty_like(x)
+    numpy_energy = potential.velocity_energy(x, numpy_velocity)
+
+    monkeypatch.setattr(mojo_quad, "_DENSE_NUMPY_THRESHOLD", n - 1)
+    mojo_velocity = np.empty_like(x)
+    mojo_energy = potential.velocity_energy(x, mojo_velocity)
+
+    assert np.allclose(numpy_velocity, expected, rtol=2e-13, atol=1e-13)
+    assert np.allclose(mojo_velocity, expected, rtol=2e-13, atol=1e-13)
+    expected_energy = 0.5 * float(x @ expected)
+    assert numpy_energy == pytest.approx(expected_energy, rel=2e-13)
+    assert mojo_energy == pytest.approx(expected_energy, rel=2e-13)
+
+
 def test_diag_random_matches_upstream_seed():
     diag = np.array([0.2, 1.0, 3.0, 20.0])
     ours = mojo.QuadPotentialDiag(diag, rng=941)

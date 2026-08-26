@@ -138,10 +138,9 @@ def diag_velocity_energy_parallel(
 
 
 def full_velocity(x: Ptr, matrix: Ptr, velocity: Ptr, n: Int):
-    external_call["cblas_dgemv", NoneType](
+    external_call["cblas_dsymv", NoneType](
         c_int(101),
-        c_int(111),
-        c_int(n),
+        c_int(121),
         c_int(n),
         1.0,
         matrix,
@@ -526,10 +525,12 @@ def mpmc_is_turning(
         var left_dot = external_call["cblas_ddot", Float64](
             c_int(n), momentum, c_int(1), left, c_int(1)
         )
+        if left_dot <= 0.0:
+            return 1
         var right_dot = external_call["cblas_ddot", Float64](
             c_int(n), momentum, c_int(1), right, c_int(1)
         )
-        return 1 if left_dot <= 0.0 or right_dot <= 0.0 else 0
+        return 1 if right_dot <= 0.0 else 0
     var left0 = SIMD[DType.float64, W](0.0)
     var left1 = SIMD[DType.float64, W](0.0)
     var left2 = SIMD[DType.float64, W](0.0)
