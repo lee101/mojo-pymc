@@ -1,9 +1,7 @@
 """Dense float64 HMC kernels exposed through a C ABI."""
 
 from std.ffi import c_int, external_call
-from std.math import sqrt
 from std.runtime import initialize_runtime
-from std.runtime.asyncrt import create_task
 from std.sys.info import simd_width_of
 
 comptime W = simd_width_of[DType.float64]()
@@ -60,7 +58,7 @@ def diag_velocity_energy(x: Ptr, diag: Ptr, velocity: Ptr, n: Int) -> Float64:
     return 0.5 * energy
 
 
-async def diag_velocity_energy_chunk(
+def diag_velocity_energy_chunk(
     x: Ptr,
     diag: Ptr,
     velocity: Ptr,
@@ -95,42 +93,14 @@ def diag_velocity_energy_parallel(
     scratch: Ptr,
     n: Int,
 ) -> Float64:
+    # Memory bound: three float64 streams per element for a couple of flops, so
+    # splitting the range across workers costs more in bandwidth than it saves.
+    # The chunk loop is inlined and run serially.
     var chunk_size = (
         ((n + ELEMENT_WORKERS - 1) // ELEMENT_WORKERS + W - 1) // W * W
     )
-
-    var task0 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 0)
-    )
-    var task1 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 1)
-    )
-    var task2 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 2)
-    )
-    var task3 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 3)
-    )
-    var task4 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 4)
-    )
-    var task5 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 5)
-    )
-    var task6 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 6)
-    )
-    var task7 = create_task(
-        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, 7)
-    )
-    _ = task0.wait()
-    _ = task1.wait()
-    _ = task2.wait()
-    _ = task3.wait()
-    _ = task4.wait()
-    _ = task5.wait()
-    _ = task6.wait()
-    _ = task7.wait()
+    for task in range(ELEMENT_WORKERS):
+        diag_velocity_energy_chunk(x, diag, velocity, scratch, n, chunk_size, task)
     var energy = 0.0
     for task in range(ELEMENT_WORKERS):
         energy += scratch[task]
@@ -217,7 +187,7 @@ def leapfrog_first_diag(
         i += 1
 
 
-async def leapfrog_first_diag_chunk(
+def leapfrog_first_diag_chunk(
     q: Ptr,
     momentum: Ptr,
     grad: Ptr,
@@ -257,58 +227,15 @@ def leapfrog_first_diag_parallel(
     epsilon: Float64,
     n: Int,
 ):
+    # Memory bound: five float64 streams per element for a handful of flops, so
+    # the chunk loop is run serially rather than spread over workers.
     var chunk_size = (
         ((n + ELEMENT_WORKERS - 1) // ELEMENT_WORKERS + W - 1) // W * W
     )
-
-    var task0 = create_task(
+    for task in range(ELEMENT_WORKERS):
         leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 0
+            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, task
         )
-    )
-    var task1 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 1
-        )
-    )
-    var task2 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 2
-        )
-    )
-    var task3 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 3
-        )
-    )
-    var task4 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 4
-        )
-    )
-    var task5 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 5
-        )
-    )
-    var task6 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 6
-        )
-    )
-    var task7 = create_task(
-        leapfrog_first_diag_chunk(
-            q, momentum, grad, diag, velocity, epsilon, n, chunk_size, 7
-        )
-    )
-    _ = task0.wait()
-    _ = task1.wait()
-    _ = task2.wait()
-    _ = task3.wait()
-    _ = task4.wait()
-    _ = task5.wait()
-    _ = task6.wait()
-    _ = task7.wait()
 
 
 def leapfrog_first_full(
