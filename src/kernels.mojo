@@ -31,7 +31,7 @@ def dot(a: Ptr, b: Ptr, n: Int) -> Float64:
     var vacc = SIMD[DType.float64, W](0.0)
     var i = 0
     while i + W <= n:
-        vacc += a.load[width=W](i) * b.load[width=W](i)
+        vacc += a.unsafe_load[width=W](i) * b.unsafe_load[width=W](i)
         i += W
     var acc = vacc.reduce_add()
     while i < n:
@@ -44,8 +44,8 @@ def diag_velocity_energy(x: Ptr, diag: Ptr, velocity: Ptr, n: Int) -> Float64:
     var vacc = SIMD[DType.float64, W](0.0)
     var i = 0
     while i + W <= n:
-        var vx = x.load[width=W](i)
-        var vv = vx * diag.load[width=W](i)
+        var vx = x.unsafe_load[width=W](i)
+        var vv = vx * diag.unsafe_load[width=W](i)
         velocity.store(i, vv)
         vacc += vx * vv
         i += W
@@ -72,8 +72,8 @@ def diag_velocity_energy_chunk(
     var vacc = SIMD[DType.float64, W](0.0)
     var i = start
     while i + W <= end:
-        var vx = x.load[width=W](i)
-        var vv = vx * diag.load[width=W](i)
+        var vx = x.unsafe_load[width=W](i)
+        var vv = vx * diag.unsafe_load[width=W](i)
         velocity.store(i, vv)
         vacc += vx * vv
         i += W
@@ -153,7 +153,7 @@ def add_scaled(y: Ptr, x: Ptr, alpha: Float64, n: Int):
     var va = SIMD[DType.float64, W](alpha)
     var i = 0
     while i + W <= n:
-        y.store(i, y.load[width=W](i) + va * x.load[width=W](i))
+        y.store(i, y.unsafe_load[width=W](i) + va * x.unsafe_load[width=W](i))
         i += W
     while i < n:
         y[i] += alpha * x[i]
@@ -174,11 +174,11 @@ def leapfrog_first_diag(
     var vdt = SIMD[DType.float64, W](dt)
     var i = 0
     while i + W <= n:
-        var vp = momentum.load[width=W](i) + vdt * grad.load[width=W](i)
-        var vv = vp * diag.load[width=W](i)
+        var vp = momentum.unsafe_load[width=W](i) + vdt * grad.unsafe_load[width=W](i)
+        var vv = vp * diag.unsafe_load[width=W](i)
         momentum.store(i, vp)
         velocity.store(i, vv)
-        q.store(i, q.load[width=W](i) + veps * vv)
+        q.store(i, q.unsafe_load[width=W](i) + veps * vv)
         i += W
     while i < n:
         momentum[i] += dt * grad[i]
@@ -205,11 +205,11 @@ def leapfrog_first_diag_chunk(
     var vdt = SIMD[DType.float64, W](dt)
     var i = start
     while i + W <= end:
-        var vp = momentum.load[width=W](i) + vdt * grad.load[width=W](i)
-        var vv = vp * diag.load[width=W](i)
+        var vp = momentum.unsafe_load[width=W](i) + vdt * grad.unsafe_load[width=W](i)
+        var vv = vp * diag.unsafe_load[width=W](i)
         momentum.store(i, vp)
         velocity.store(i, vv)
-        q.store(i, q.load[width=W](i) + veps * vv)
+        q.store(i, q.unsafe_load[width=W](i) + veps * vv)
         i += W
     while i < end:
         momentum[i] += dt * grad[i]
@@ -468,23 +468,23 @@ def mpmc_is_turning(
     var right3 = SIMD[DType.float64, W](0.0)
     var i = 0
     while i + 4 * W <= n:
-        var momentum0 = momentum.load[width=W](i)
-        var momentum1 = momentum.load[width=W](i + W)
-        var momentum2 = momentum.load[width=W](i + 2 * W)
-        var momentum3 = momentum.load[width=W](i + 3 * W)
-        left0 += momentum0 * left.load[width=W](i)
-        left1 += momentum1 * left.load[width=W](i + W)
-        left2 += momentum2 * left.load[width=W](i + 2 * W)
-        left3 += momentum3 * left.load[width=W](i + 3 * W)
-        right0 += momentum0 * right.load[width=W](i)
-        right1 += momentum1 * right.load[width=W](i + W)
-        right2 += momentum2 * right.load[width=W](i + 2 * W)
-        right3 += momentum3 * right.load[width=W](i + 3 * W)
+        var momentum0 = momentum.unsafe_load[width=W](i)
+        var momentum1 = momentum.unsafe_load[width=W](i + W)
+        var momentum2 = momentum.unsafe_load[width=W](i + 2 * W)
+        var momentum3 = momentum.unsafe_load[width=W](i + 3 * W)
+        left0 += momentum0 * left.unsafe_load[width=W](i)
+        left1 += momentum1 * left.unsafe_load[width=W](i + W)
+        left2 += momentum2 * left.unsafe_load[width=W](i + 2 * W)
+        left3 += momentum3 * left.unsafe_load[width=W](i + 3 * W)
+        right0 += momentum0 * right.unsafe_load[width=W](i)
+        right1 += momentum1 * right.unsafe_load[width=W](i + W)
+        right2 += momentum2 * right.unsafe_load[width=W](i + 2 * W)
+        right3 += momentum3 * right.unsafe_load[width=W](i + 3 * W)
         i += 4 * W
     while i + W <= n:
-        var momentum_v = momentum.load[width=W](i)
-        left0 += momentum_v * left.load[width=W](i)
-        right0 += momentum_v * right.load[width=W](i)
+        var momentum_v = momentum.unsafe_load[width=W](i)
+        left0 += momentum_v * left.unsafe_load[width=W](i)
+        right0 += momentum_v * right.unsafe_load[width=W](i)
         i += W
     var left_dot = (left0 + left1 + left2 + left3).reduce_add()
     var right_dot = (right0 + right1 + right2 + right3).reduce_add()
